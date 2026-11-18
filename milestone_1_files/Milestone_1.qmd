@@ -1,0 +1,58 @@
+---
+title: "Milestone 1: Question and Simulation"
+author: "Ally Finnerty"
+format: html
+editor: visual
+---
+
+## Plan & Question
+
+The prairies are the homeland to the Métis people of Canada, one of three distinct Indigenous groups in Canada. The Red River Métis have origins in southern Manitoba, while other Metis people have migrated to other parts of Canada. I want to understand how the Métis population in the prairies has changed in recent years according to the 2016 and 2021 Canadian Census data. This is important because the prairies are the homeland of the Métis people which is an important part of Métis history and heritage.
+
+**Research question:** How has the Métis population in Manitoba, Saskatchewan and Alberta changed between 2016 and 2021 according to Canadian Census data for individuals that self identify as Métis?
+
+## Data and Method
+
+The project uses data from Statistics Canada's Census of Population. This analysis focuses on Indigenous identities across Manitoba, Saskatchewan and Alberta with attention to those who self-identify as Métis. The dataset is from Statistics Canada's open data portal accessible to the public which will examine different geographic areas in relation to population changes.
+
+```{r}
+#Intall/load required packages
+
+#install.packages("tidyverse")
+#install.packages("tinytex")
+#install.packages("knitr")
+#install.packages("scales")
+
+library(tidyverse)
+library(knitr)
+library(scales)
+library(readr)
+```
+
+## Simulation of data
+
+```{r}
+#| echo: false
+#Random simulation of Metis population numbers  
+set.seed(123)
+
+sample_metis_pop <- data.frame(
+  Province = rep(
+    c("Manitoba", "Saskatchewan", "Alberta"),
+    each = 2
+  ),
+  Year = rep(c(2016, 2021), times = 3),
+  Metis_Population = c(
+    sample(5000:10000, 1),
+    sample(5500:11000, 1),
+    sample(6000:12000, 1),
+    sample(6500:13000, 1),
+    sample(7000:14000, 1),
+    sample(7500:15000, 1)
+  )
+)
+
+sample_metis_pop
+```
+
+*Table 1: Simulated Métis Population in Manitoba, Saskatchewan, Alberta in 2016 and 2021.*

@@ -1,0 +1,371 @@
+---
+title: "Milestone 2: Data and Exploratory Analysis"
+author: "Ally Finnerty"
+format: html
+editor: visual
+---
+
+# Research Question
+
+How has the Métis population changed in Manitoba, Saskatchewan, and Alberta between the 2016 and 2021 Canadian Census, based on individuals who self-identify as Métis?
+
+*(I am in the process of developing this RQ to include data from different cities and towns to see how the Métis population has changed over time for rural compared to urban centers from 2016-2021. Farther back if available.)*
+
+# Load/install packages
+
+```{r}
+#Required packages
+
+library(tidyverse)
+library(cancensus)
+library(knitr)
+library(scales)
+library(here)
+```
+
+# Acquire Data
+
+The data used for this research project was retrieved from the 2016 and 2021 Canadian Census of Population using the cancensus package available to install from R. The provinces of interest are the prairie provinces: Manitoba, Saskatchewan and Alberta. The R script `01-aquire-data.R` will create a folder for to save the raw data of the Métis population count for each province, the original raw data requires an API key, but reading in these CSV files do not.
+
+### 2016 Census Data
+
+```{r}
+#| message: false
+
+#Read in raw Métis Census data from 2016
+raw_metis_2016 <- readr::read_csv(
+  here("milestone_2_files", "raw_data",
+       "raw_metis_2016.csv"))
+
+raw_metis_2016
+```
+
+### 2021 Census Data
+
+```{r}
+#| message: false
+
+#Read in raw Métis Census data from 2021
+raw_metis_2021 <- readr::read_csv(
+  here("milestone_2_files", "raw_data",
+       "raw_metis_2021.csv"))
+
+raw_metis_2021
+```
+
+### Raw data as CSV files
+
+```{r}
+# Check that both files have been saved
+list.files(here("milestone_2_files","raw_data"))
+```
+
+# Data Cleaning
+
+The raw data was cleaned to narrow down to only the variables related to my question.
+
+Cleaning:
+
+- Select provinces, total provincial population and Métis population
+- Add Census year to each dataset
+- Combine 2016 and 2021 datasets into one
+- Clean up province names so they are all consistent
+- Arrange data by province and year
+- Save clean data as a new CSV file
+
+Cleaning process can be viewed below or with `02-clean-data.R` script.
+
+Clean 2016 census data:
+
+```{r}
+#clean 2016 Census data
+clean_metis_2016 <- raw_metis_2016 |>
+  select(
+    Province = `Region Name`,
+    Total_Population = Population,
+    Metis_Population = `v_CA16_3864: Métis`
+  ) |>
+  mutate(Census_Year = 2016)
+
+print(clean_metis_2016)
+```
+
+Clean 2021 census data:
+
+```{r}
+clean_metis_2021 <- raw_metis_2021 |>
+  select(
+    Province = `Region Name`,
+    Total_Population = Population,
+    Metis_Population = `v_CA21_4213: Métis`
+  ) |>
+  mutate(Census_Year = 2021)
+
+clean_metis_2021
+```
+
+Combine both years:
+
+```{r}
+clean_metis_data <- bind_rows(
+  clean_metis_2016,
+  clean_metis_2021)
+```
+
+Fix province names:
+
+```{r}
+clean_metis_data <- clean_metis_data |>
+  mutate(
+    Province = str_remove(Province, " \\(.*\\)")
+  ) |>
+  select(
+    Province,
+    Census_Year,
+    Total_Population,
+    Metis_Population
+  ) |>
+  arrange(Province, Census_Year)
+
+# View cleaned dataset
+print(clean_metis_data)
+```
+
+Save clean dataset:
+
+```{r}
+# Create a folder for cleaned data
+dir.create(here("milestone_2_files","clean_data"), showWarnings = FALSE)
+
+# Save the cleaned dataset
+write_csv(
+  clean_metis_data,
+  here("milestone_2_files","clean_data", "clean_metis_data.csv"))
+```
+
+# Test data
+
+## Test 1: Check provinces and Census years
+
+Each province should appear twice, one for 2016 and one for 2021.
+
+```{r}
+#| message: false
+stopifnot(
+  nrow(clean_metis_data) == 6,
+  setequal(
+    clean_metis_data$Province,
+    c("Manitoba", "Saskatchewan", "Alberta")
+  ),
+  setequal(
+    clean_metis_data$Census_Year,
+    c(2016, 2021)
+  ),
+  !anyDuplicated(
+    clean_metis_data[c("Province", "Census_Year")]
+  )
+)
+
+print("Test 1 passed! All provinces and Census years are correct.")
+```
+
+## Test 2: Check population values
+
+Check to make sure there are no missing or negative values. Metis population should not exceed total population of provinces.
+
+```{r}
+#| message: false
+stopifnot(
+  !anyNA(clean_metis_data),
+  all(clean_metis_data$Metis_Population >= 0),
+  all(clean_metis_data$Total_Population > 0),
+  all(
+    clean_metis_data$Metis_Population <=
+      clean_metis_data$Total_Population)
+)
+
+print("Test 2 passed! All population values are valid.")
+```
+
+## Test 3: Check that raw and clean population counts match
+
+Read original raw census data and calculate original Metis poputlation totals for each census year and compare to cleaned version. Check that both match.
+
+```{r}
+#| message: false
+raw_metis_2016 <- read_csv(
+  here("milestone_2_files","raw_data", "raw_metis_2016.csv"))
+
+raw_metis_2021 <- read_csv(
+  here("milestone_2_files","raw_data", "raw_metis_2021.csv"))
+
+#Calculate the original Métis population totals for each year.
+raw_total_2016 <- sum(
+  raw_metis_2016$`v_CA16_3864: Métis`)
+
+raw_total_2021 <- sum(
+  raw_metis_2021$`v_CA21_4213: Métis`)
+
+#Calculate the cleaned Métis population totals for each year.
+clean_total_2016 <- clean_metis_data |>
+  filter(Census_Year == 2016) |>
+  summarise(Total = sum(Metis_Population)) |>
+  pull(Total)
+
+clean_total_2021 <- clean_metis_data |>
+  filter(Census_Year == 2021) |>
+  summarise(Total = sum(Metis_Population)) |>
+  pull(Total)
+
+#Check that the raw and cleaned totals match.
+stopifnot(
+  raw_total_2016 == clean_total_2016,
+  raw_total_2021 == clean_total_2021)
+
+print("Test 3 passed! Raw and cleaned population totals match.")
+#if all tests pass:
+print("All tests passed successfully!")
+```
+
+# Exploratory Data Analysis (EDA)
+
+Now we want to create 3 graphs with our clean Metis Census Data
+
+## Graph 1: Métis Population by Province and Census Year
+
+```{r}
+# Graph Metis population by province and Census year
+metis_pop_graph <- ggplot(
+  clean_metis_data,
+  aes(
+    x = Province,
+    y = Metis_Population,
+    fill = factor(Census_Year))
+) +
+  geom_col(position = "dodge") +
+  scale_fill_manual(
+    values = c("2016" = "#F4A6C1",
+               "2021" = "#9B59B6")
+  ) +
+  scale_y_continuous(labels = comma) +
+  labs(
+    title = "Métis Population in the Prairie Provinces",
+    subtitle = "2016 and 2021 Canadian Census",
+    x = "Province",
+    y = "Métis Population",
+    fill = "Census Year",
+    caption = "Source: Statistics Canada, 2016 and 2021 Census"
+  ) +
+  theme_minimal()
+
+print(metis_pop_graph)
+```
+
+*Figure 1: Métis Population in the Prairie Provinces in 2016 and 2021*
+
+## Graph 2: Absolute Métis Population Increase
+
+```{r}
+#Calculate absolute metis population increase
+metis_change <- clean_metis_data |>
+  select(Province, Census_Year, Metis_Population) |>
+  pivot_wider(
+    names_from = Census_Year,
+    values_from = Metis_Population,
+    names_prefix = "Population_"
+  ) |>
+  mutate(
+    Population_Increase = Population_2021 - Population_2016
+  )
+```
+
+```{r}
+#Graph Absolute metis population increase
+metis_increase_graph <- ggplot(
+  metis_change,
+  aes(
+    x = Province,
+    y = Population_Increase
+  )
+) +
+  geom_col(fill = "#9B59B6") +
+  geom_text(
+    aes(label = comma(Population_Increase)),
+    vjust = -0.5
+  ) +
+  scale_y_continuous(
+    labels = comma,
+    expand = expansion(mult = c(0, 0.15))
+  ) +
+  labs(
+    title = "Métis Population Increase by Province",
+    subtitle = "Population change between 2016 and 2021",
+    x = "Province",
+    y = "Population Increase",
+    caption = "Source: Statistics Canada, 2016 and 2021 Census"
+  ) +
+  theme_minimal()
+
+print(metis_increase_graph)
+```
+
+*Figure 2: Absolute Métis population increase in prairie provinces between 2016 to 2021.*
+
+## Graph 3: Percentage Change in Métis Population
+
+Calculate the percentage of growth in Metis population:
+
+```{r}
+# Calculate percentage growth with formula:
+metis_change <- metis_change |>
+  mutate(
+    Growth_Rate = 
+      (Population_Increase / Population_2016) * 100)
+
+# View population change and growth rate
+print(metis_change)
+```
+
+```{r}
+#Graph Percentage growth in Metis population
+metis_percent_graph <- ggplot(
+  metis_change,
+  aes(
+    x = Province,
+    y = Growth_Rate
+  )
+) +
+  geom_col(fill = "#F4A6C1") +
+  geom_text(
+    aes(label = paste0(round(Growth_Rate, 2), "%")),
+    vjust = -0.5
+  ) +
+  scale_y_continuous(
+    labels = label_number(suffix = "%"),
+    expand = expansion(mult = c(0, 0.15))
+  ) +
+  labs(
+    title = "Métis Population Growth by Province",
+    subtitle = "Percentage change between 2016 and 2021",
+    x = "Province",
+    y = "Population Growth (%)",
+    caption = "Source: Statistics Canada, 2016 and 2021 Census"
+  ) +
+  theme_minimal()
+
+print(metis_percent_graph)
+```
+
+*Figure 3: Métis Population Growth by Province, Percentage change between 2016 and 2021*
+
+# Reflection
+
+The exploratory analysis shows that the Métis population increased in Manitoba, Saskatchewan, and Alberta between 2016 and 2021, with Alberta experiencing the largest absolute increase and percentage growth.
+
+What surprised me was that although Manitoba had a larger growth in absolute Métis population (Figure 2), Figure 3 reveals that Saskatchewan had a higher percentage of growth than Manitoba. This is interesting since Manitoba had a larger Metis population for both census years. Using the two different graphs are important when comparing population growth to see the percent of growth in addition to population increase.
+
+Using two different graphs is important to compare population growth. Absolute population change shows how many additional people self-identified as Métis, while percentage growth shows how much population changed relative to its original size.
+
+It is also important to note that these Census counts reflect individuals who self-identify as Métis. Changes in the population counts can mean many things, including demographic changes, migration, and changes in self-identification. It also may not be accurate to measure which individuals are members of a registered member of a Métis settlement or nation.
+
+I am reflecting how I can take my RQ further to include more regions, and how to compare the changes of Métis population contrasting urban and rural centres. I am considering what is defined as urban vs rural according to Statistics Canada, what regions to include in my analysis, which to leave out, how many for each province, and how far back I can go with the census data.
